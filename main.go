@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pemistahl/lingua-go"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -112,22 +114,34 @@ func NewApp() *App {
 // Main method: get subtitles from YouTube as string and search keyword
 func (app *App) SearchKeywordInSubtitles(videoURL, keyword string) (float64, bool, error) {
 
+	// Detect language of the keyword
+	detector := lingua.NewLanguageDetectorBuilder().FromAllLanguages().Build()
+	lang, ok := detector.DetectLanguageOf(keyword)
+	langCode := "en"
+	if ok {
+		code := strings.ToLower(lang.IsoCode639_1().String())
+		if code != "" {
+			langCode = code
+		}
+	}
+
 	// Use a unique output template to avoid file conflicts
 	outputTemplate := "temp_subs"
 	cmd := exec.Command("yt-dlp",
 		"--skip-download",
 		"--write-subs",
-		"--sub-langs", "en",
+		"--write-auto-subs",
+		"--sub-langs", langCode,
 		"--sub-format", "srt",
 		"-o", outputTemplate,
 		videoURL,
 	)
 	if err := cmd.Run(); err != nil {
-		return 0, false, fmt.Errorf("failed to fetch English SRT subtitles: only SRT subtitles are supported")
+		return 0, false, fmt.Errorf("failed to fetch SRT subtitles for language '%s': %w", langCode, err)
 	}
 
-	// The SRT file will be named temp_subs.en.srt
-	srtFile := outputTemplate + ".en.srt"
+	// The SRT file will be named temp_subs.<langCode>.srt
+	srtFile := fmt.Sprintf("%s.%s.srt", outputTemplate, langCode)
 	srtContent, err := os.ReadFile(srtFile)
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to read SRT file: %w", err)
@@ -135,7 +149,7 @@ func (app *App) SearchKeywordInSubtitles(videoURL, keyword string) (float64, boo
 	// Optionally, clean up the SRT file after reading
 	defer os.Remove(srtFile)
 
-	fmt.Println("--- RAW SRT OUTPUT START ---")
+	fmt.Printf("--- RAW SRT OUTPUT (%s) START ---\n", langCode)
 	fmt.Println(string(srtContent))
 	fmt.Println("--- RAW SRT OUTPUT END ---")
 	subs, err := app.parser.ParseSRTContent(string(srtContent))
