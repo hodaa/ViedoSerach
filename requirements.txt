@@ -1,9 +1,0 @@
-
-where to store audio files and vides files
-support arabic
-file names after the saerch word
-doceker(yt-dlp , ffmpeg)
-how to make it faster
-he doesn't vlean the file if he didn't find the keyword
-the ability to upload the video
-the ability to upload the audio
